@@ -1,0 +1,270 @@
+#!/usr/bin/env python
+# file name: SSLCertificateCheckTool.py
+# created by: Emiliano Di Marino
+# purpose: Check the SSL certificate validity
+# last edited by: Emiliano Di Marino 06-07-2014
+
+
+import socket
+import errno
+# SSL wrapper for socket objects:
+# This module provides access to ssl encryption and 
+# peer authentication facilities for network sockets.
+# For more information visit: https://docs.python.org/2/library/ssl.html
+import ssl
+import time
+import sys
+import pprint
+from tools import BaseTool
+from tools import ToolException
+from datetime import datetime
+import re
+
+# need backports.ssl_match_hostname.
+# you can install it with the following command: pip install backports.ssl_match_hostname
+from backports.ssl_match_hostname import match_hostname, CertificateError
+
+#mechanize silently fails to validate SSL certificates over https. go here for more information:
+#https://github.com/jjlee/mechanize/issues/37
+
+import urlparse
+
+class SSLCertificateCheckTool(BaseTool):
+	
+
+	def __init__(self):
+		BaseTool.__init__(self, "SSLCertificateCheck")
+		self.values = []
+	
+	
+	
+	# method return True if the certificate is valif, False otherwise
+	def run(self, browser):
+		
+		print 'running SSLCertificateCheckTool'
+			
+		info = urlparse.urlparse(browser.url.replace('http://','')) 
+		hostname = ""
+		if len(info.netloc) > 0:
+			hostname = info.netloc
+		else:
+			hostname = info.path.split("/")[0]
+			
+		
+		print hostname
+		tmp = hostname.split('/')
+		tmp = tmp[0].split('.')
+		hostname = "www.%s.%s" % (tmp[-2], tmp[-1]) # "https://www."+tmp[-2]+"."+tmp[-1]
+		print hostname
+		
+		# default port for HTTPS protocol is 443,
+		# default port for HTTP protocol is 80
+		port = 443
+		# for more information about socket in python
+		# vist: https://docs.python.org/2/library/socket.html
+		try:
+			s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		except socket.error as err:
+			print "not is possible to create socket "
+			#message = "not is possible to create socket: ", err
+			raise ToolException
+			#sys.exit(message)
+			
+
+		# - 'cacert.pem' is a  bundle of certificates you use 
+		#   to verify that the server is really the correct site 
+		#   you are talking to (when it presents its certificate in the SSL handshake).
+		#   for more information visit: http://en.wikipedia.org/wiki/Certificate_authority
+		
+		try:
+			#print 'ssl_sock'
+			ssl_sock = ssl.wrap_socket(s,
+						#ssl_version=ssl.PROTOCOL_SSLv3,
+						ca_certs="ssl/cacert.pem",
+						#ca_certs="/etc/ssl/certs/ca-certificates.crt",
+						cert_reqs=ssl.CERT_REQUIRED)
+		except socket.error as err:
+			#message = "not is possible to create ssl_sock: ", err
+			s.close()
+			raise ToolException("not is possible to create ssl_sock")
+			#sys.exit(message)
+			
+
+		
+		
+		try:
+			#print 'connect'
+			ssl_sock.connect((hostname, port))
+			
+		except ssl.SSLError as err:
+			if err.args[0] == 1:
+			#SSL3_GET_SERVER_CERTIFICATE:certificate verify failed
+			#The problem of connect() is caused by an untrusted SSL certificate
+				#s.shutdown(socket.SHUT_RDWR)
+				s.close()
+				ssl_sock.close()
+				#print "untrusted SSL certificate"
+				raise ToolException("untrusted SSL certificate")
+				#return False
+		except socket.gaierror as err:
+			if err.args[0] == -2:
+			#Problems related to DNS and/or firewall
+			#It's not clear how to solve this problem
+			#try to Add own hostname entry to /etc/hosts to try to solve this problem
+			#http://bytes.com/topic/python/answers/699370-socket-gaierror
+			#Name or Service not known
+				#s.shutdown(socket.SHUT_RDWR)
+				s.close()
+				ssl_sock.close()
+				self.values.append([ " ",  "SSL protocol not supported" ])
+				#raise ToolException("Problems related to DNS and/or firewall")
+				#message = err, "Problems related to DNS and/or firewall" 
+				#sys.exit(message)
+				return False
+		except socket.error as err:
+			if err.errno == errno.ECONNREFUSED: 
+			#Connection Refused
+				#s.shutdown(socket.SHUT_RDWR)
+				s.close()
+				ssl_sock.close()
+				# If the connection is refused along the port 443,
+				# the SSL protocol is not supported.
+				# Otherwise connection refused means a firewall problem.
+				#message = "Connection refused" 
+				#sys.exit(message)
+				print "Connection refused, SSL protocol not supported"
+				self.values.append([ "Connection refused",  "SSL protocol not supported" ])
+				return False
+		except Exception as err:
+			#s.shutdown(socket.SHUT_RDWR)
+			s.close()
+			ssl_sock.close()
+			#print "Something was wrong"
+			raise ToolException("Something was wrong")
+			#message = "Something was wrong: ", err
+			#sys.exit(message)
+			#If there is Connection timed out or connection refused go here:
+			#http://stackoverflow.com/questions/12145536/how-can-i-debug-what-is-causing-a-connection-refused-or-a-connection-time-out
+			#print 'certificate is not ok'
+			#return False
+			
+
+		print 'try to get informations about certificate'
+		
+		# check if the host name of the certificate returned by the server
+		# to which you are connecting is equal to the hostname 
+		# that you are trying to reach.
+		# IP addresses are not currently supported.
+		try:
+			cert = ssl_sock.getpeercert()
+			match_hostname(cert, hostname)
+		except CertificateError, ce:
+			#print 'obtained informations about certificate but it is not valid'
+			self.values.append([ "The certificate is:", 
+						" NOT VALID (hostname does not coincide with certificate's hostname)" ])
+			return False
+		except Exception, ex:
+			# this means that certificare is not valid too.
+			# print 'can not obtain informations about certificate'
+			self.values.append([ " -- THE WEBSITE [%s] HAS NO HTTPS CONNECTION-- " % hostname, 
+						" There is not the certificate "])
+			return False
+
+		#print cert['notAfter']
+		# check if the certificate is expired
+		exp_date, ndays = self.check_SSL_expiration(cert)
+		self.values.append([ "Expiration date", exp_date])
+		self.values.append([ "Numbers of day before expiration", str(ndays) ])
+		self.values.append([ "", ""])
+				
+		#print ' ---------------------------------- '
+		#print '|    MOST IMPORMAT INFORMATIONS    |'
+		#print '|      ABOUT SSL CERTIFICATE       |'
+		#print ' ---------------------------------- '
+		
+		# print the remote address and the port to 
+		# which the socket is connected
+		#print ssl_sock.getpeername()
+		#print ' ---------------------------------- '
+		
+		# print the name of the cipher being used, 
+		# the version of the SSL protocol that defines its use, 
+		# and the number of secret bits being used
+		#print 'cipher:'
+		chiper = ssl_sock.cipher()
+		#print ' - name: ', chiper[0]
+		#print ' - version of the SSL protocol: ', chiper[1]
+		#print ' - number of secret bits: ', chiper[2]
+
+		self.values.append(["Cipher Name", chiper[0]])
+		self.values.append(["Version of the SSL protocol", chiper[1]])
+		self.values.append(["Number of Secrets Bits", str(chiper[2])])
+		self.values.append([ "", ""])
+		
+		#print self.values
+		#print ' ---------------------------------- '
+		# print all the informations about SSL certificate
+		# using the following line
+		# print pprint.pformat(cert)
+		#print 'other informations: '
+		#print ' - expiration date: ', cert['notAfter']
+		#print ' - countryName: ', cert['subject'][0][0][1]
+		#print ' - stateOrProvinceName: ', cert['subject'][1][0][1]
+		#print ' - localityName: ', cert['subject'][2][0][1]
+		#print ' - organizationName: ', cert['subject'][3][0][1]
+		#print ' - commonName: ', cert['subject'][4][0][1]
+		#print ' ---------------------------------- '
+		
+		# In some descriptions od certificates there aren't some
+		# fields such as commonName, organizationName ...
+		
+		for e in cert['subject']:
+			tmp = re.sub(r'([a-z]*)([A-Z])',r'\1 \2',e[0][0])
+			key_name = tmp.replace(tmp[0], tmp[0].upper())
+			self.values.append([ key_name, e[0][1] ])
+		
+		# fetches the certificate and return it as a PEM-encoded string
+		#PEMcert = ssl.get_server_certificate((main_domain, port), ca_certs="ssl/cacert.pem")
+		#self.values.append([ "", "" ])
+		#self.values.append([ "Server's certificate:", PEMcert ]) 
+		
+		
+		# everithing is ok, close the sockets!
+		#s.shutdown(socket.SHUT_RDWR)
+		s.close()
+		ssl_sock.close()
+		
+		#print 'certificate is ok'
+		self.values.append([ "", "" ])
+		self.values.append([ "The certificate is:", "VALID" ])
+		return True
+		
+		
+		
+		
+
+	# return expiration date of certificate and time that remains to 
+	# the expiration
+	def check_SSL_expiration(self, cert):
+		if 'notAfter' in cert:
+			try:
+				#time of expiry of the certificate
+				expire_date_struct = time.strptime(cert['notAfter'], '%b %d %H:%M:%S %Y %Z')
+			except:
+				print 'Certificate date format unknow'
+				return cert['notAfter'], "-- NOT AVAILABLE --"
+
+			expire_date = datetime.fromtimestamp(time.mktime(expire_date_struct))
+			
+			expire_in = expire_date - datetime.now()
+		
+			return cert['notAfter'], expire_in.days
+		else:
+			print 'there is not the field to check the expiration date'
+			return "-- NOT AVAILABLE --", "-- NOT AVAILABLE --"
+
+	
+	def createModel(self):
+		return ["key", "value"],  self.values 
+
+

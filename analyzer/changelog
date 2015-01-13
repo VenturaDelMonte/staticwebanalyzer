@@ -1,0 +1,18 @@
+add here every stuff you write, change, delete before the  commit
+
+
+#0 Ventura: added machanize based browser for easily handling http requests/responses
+#1 Ventura: added base structure for site processing: implemented modular tools factory
+#2 Ventura: changed tools structure, now you can have a ready browser object in run method, and you can set if tool needs request refresh
+#3 Anna: added WhoIsTool, the file pygmaps.py makes the map with a point on the coordinates of localization of domain
+#4 Ventura: implemented Form Analyzer, we need more pages to test it properly!!!
+#5 Emiliano: added user agents of firefox and chrome in user_agents.py. For more details about the organization of the file, watch it!!
+#6 Emiliano: added SSLCertificateCheckTool.py This class aims to check if an SSL certificate is valid.
+#7 Ventura: properly merged emiliano's ssl cert tool
+#8 Emiliano: now you can give in input a list of websites simply writing urls in websites.txt
+#9 Anna: added listSites.txt. There are some sites for the testing
+#10 Emiliano: Now you can pass on the command line the file that contains the urls to analyze. 
+#11 Ventura: started gui
+#12 Emiliano: Task Multi file loading in GUI Completed
+#13 Ventura: completed GUI, fixed form analyzer
+#14 Anna: fixed whoistool

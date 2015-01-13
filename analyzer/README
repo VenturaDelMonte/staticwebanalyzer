@@ -1,0 +1,37 @@
+
+--------------------------------------------------------------------------------------------
+Before you start:
+
+This project is written in Python 2.7.x, you need to have it installed
+You need Mechanize package, available here: http://wwwsearch.sourceforge.net/mechanize/
+
+We'are trying to create a PoC, so stay tuned for next updates...
+--------------------------------------------------------------------------------------------
+Base conventions:
+
+1) this is a crossplatform tool, so be free to use your favorite OS :) [plz keep in mind the
+  differences between 'nix and win]
+2) you can use your favorite programming style, but you should make things clear and working,
+  moreover you must not commit anything not working or not properly tested
+3) you have to add the file header described in the end of this document to your own files,
+  keep them updated each time you edit a file, so we will know the first mate to blame when 
+  something does not work :D, moreover each time you will edit something in a file, you should
+  add a comment explaining what you changed "#~", what you added "#+" or deleted "#-".
+  In project main dir, there is a changelog file that must be updated each time you are gonna 
+  commit something...
+4) Don't forget to add minimal description of what your method does ;)
+
+
+
+
+--------------------------------------------------------------------------------------------   
+Common file header
+
+#!/usr/bin/env python
+# file name: my_tool.py
+# created by: your name
+# purpose: short description 
+# last edited by: last editor name last edit date
+
+
+

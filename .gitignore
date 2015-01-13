@@ -1,0 +1,12 @@
+*.pyc
+*.aux
+*.log
+*.toc
+*.out
+*.gz
+sicurezza.pdf
+*.py~
+*.pyw~
+*.pyc~
+*.dvi
+*.cfg~
